@@ -27,10 +27,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 ```
 
 ### When to use a Native Query (The Exception):
-*   **Using PostgreSQL-specific functions and operators:** This is the most common reason. For example, querying `jsonb` columns, using full-text search functions (`to_tsvector`), or leveraging geospatial features from PostGIS.
-*   **Executing Recursive Queries or Common Table Expressions (CTEs):** For complex hierarchical data traversal (e.g., organizational charts, parts explosions) using `WITH RECURSIVE`.
-*   **Using Advanced Window Functions:** When you need complex analytical functions (`ROW_NUMBER()`, `LEAD()`, `LAG()`) that are not supported by JPQL.
-*   **Performance Tuning with Query Hints:** In rare cases where you need to provide specific hints to the PostgreSQL query planner that Hibernate's SQL generation does not support.
+
+* **Leveraging Advanced PostgreSQL Features:** This includes querying jsonb columns, using full-text search functions (to_tsvector), leveraging geospatial features from PostGIS, executing recursive queries or Common Table Expressions (CTEs), and utilizing advanced window functions. These are functionalities not directly supported by JPQL.
+* **Performance Optimization for Complex Queries:** When attempting to achieve complex logic with JPQL results in poor performance, a carefully crafted native query might offer advantages. Always benchmark thoroughly before making this decision.
+* **Fine-Grained Query Tuning (Rare):** In specific cases where you need to provide hints to the PostgreSQL query planner that Hibernate's SQL generation doesn’t support.
+
+**Important Note on Native Queries:**  Always use parameterized queries (e.g., ? placeholders) in your native SQL to prevent SQL injection vulnerabilities.  Never concatenate user-provided data directly into the query string.
 
 **Good Native Query Example (Leveraging `jsonb`):**
 This query finds posts where a `jsonb` attributes column contains a specific property. This is impossible with standard JPQL.
