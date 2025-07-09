@@ -68,28 +68,7 @@ Leaving `spring.jpa.open-in-view` as its default value (`true`).
 
 ---
 
-## Rule 4: Use `@Version` for Optimistic Locking
-**Title:** Prevent Lost Updates with `@Version`
-**Description:** To prevent concurrent updates from overwriting each other (the "lost update" problem), add a field to your entity annotated with `@Version`. This enables optimistic locking, and Hibernate will throw an exception if it detects a conflict, which you must handle.
-
-**Good Example:**
-```java
-@Entity
-public class Product {
-    @Id private Long id;
-    private int stockLevel;
-
-    @Version
-    private Long version; // Can be Long, Integer, or Timestamp
-}
-```
-
-**Bad Example:**
-An entity that can be updated by multiple users simultaneously but has no `@Version` field.
-
----
-
-## Rule 5: Avoid `CascadeType.REMOVE`
+## Rule 4: Avoid `CascadeType.REMOVE`
 **Title:** Do Not Use `CascadeType.REMOVE` on Collections
 **Description:** Using `CascadeType.REMOVE` on a collection is dangerous. It can cause massive, unintended deletions and performs very poorly because it loads the entire collection into memory to delete children one by one. Instead, handle deletions explicitly with bulk `@Modifying` queries in your service layer.
 

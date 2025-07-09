@@ -49,9 +49,75 @@ public class ProductService {
 }
 ```
 
+**Keypoints**
+
+* Fetch the entity via findById() to get a managed instance.
+* Modify the managed entity directly (no manual save() required).
+* Avoid passing detached objects to repository method
+
 ---
 
-## Rule 2: Keep Transactions Short and Focused
+## Rule 2: Prevent Lost Updates with `@Version`
+**Title:** Prevent Lost Updates with `@Version` for Optimistic Locking
+**Description:** To prevent concurrent modifications from overwriting each other (the "lost update" problem), every entity that can be updated should have a version field annotated with `@Version`. When you fetch and then modify an entity, Hibernate will increment the version number. If another transaction tries to commit a change with an old version number, Hibernate will throw an `OptimisticLockException`, which you must handle.
+
+**Good Example (Entity with `@Version`):**
+```java
+@Entity
+public class Product {
+    @Id
+    @GeneratedValue
+    private Long id;
+
+    private String name;
+
+    @Version // ✅ Add optimistic locking to prevent lost updates
+    private int version;
+}
+```
+
+**Good Example (Handling the Exception):**
+```java
+@Service
+@RequiredArgsConstructor
+public class ProductService {
+    private final ProductRepository productRepository;
+
+    @Transactional
+    public void renameProduct(Long productId, String newName, int expectedVersion) {
+        try {
+            Product product = productRepository.findById(productId).orElseThrow();
+
+            // Optional: Check version immediately for early feedback
+            if (product.getVersion() != expectedVersion) {
+                throw new ConcurrencyConflictException("The product was modified by another user.");
+            }
+
+            product.setName(newName);
+            // On commit, Hibernate will check if the version in the DB matches the version
+            // of the 'product' entity. If not, it throws an exception.
+        } catch (OptimisticLockException | ObjectOptimisticLockingFailureException e) {
+            // Translate the generic JPA/Spring exception into a domain-specific one
+            throw new ConcurrencyConflictException("Failed to update product due to a concurrent modification.", e);
+        }
+    }
+}
+```
+
+**Bad Example (Entity without `@Version`):**
+```java
+@Entity
+public class Product {
+    @Id private Long id;
+    private String name;
+    // ❌ No version field. If two users fetch this product and one saves,
+    // the second user's save will overwrite the first user's changes silently.
+}
+```
+
+---
+
+## Rule 3: Keep Transactions Short and Focused
 **Title:** Keep Transactions Short and Focused on Database Operations
 **Description:** A transaction should only wrap the code that directly interacts with the database. Move any long-running, non-database logic (like external API calls or file I/O) outside of the transactional block. To achieve this, refactor the transactional logic into its own service.
 
@@ -113,7 +179,7 @@ public void processOrder(OrderData data) {
 
 ---
 
-## Rule 3: Use `readOnly = true` for All Read Operations
+## Rule 4: Use `readOnly = true` for All Read Operations
 **Title:** Use `@Transactional(readOnly = true)` for All Read Operations
 **Description:** For methods that only read data, always use `@Transactional(readOnly = true)`. This provides a significant performance optimization by signaling to the persistence provider that it can skip dirty checking and other overhead associated with write transactions. It's good practice to set this at the class level for query-focused services.
 
@@ -145,7 +211,7 @@ A service method that only performs `SELECT` queries but is annotated with a def
 
 ---
 
-## Rule 4: Avoid Transactional Self-Invocation
+## Rule 5: Avoid Transactional Self-Invocation
 **Title:** Avoid Calling a `@Transactional` Method from Within the Same Class
 **Description:** Spring's transaction management works via proxies. Calling a transactional method from another method within the same class (e.g., `this.myTransactionalMethod()`) bypasses the proxy, and no transaction will be started for that specific method call. The best solution is to have a single public, transactional method that orchestrates private, non-transactional helper methods, or to refactor into separate services as shown in Rule 2.
 
@@ -202,7 +268,7 @@ public class UserService {
 
 ---
 
-## Rule 5: Configure Transaction Rollback Behavior
+## Rule 6: Configure Transaction Rollback Behavior
 **Title:** Explicitly Configure Rollback Rules for Transactions
 **Description:** By default, Spring only rolls back transactions for unchecked exceptions (`RuntimeException` and `Error`). It will commit a transaction if a checked exception is thrown. This is rarely the desired behavior. Always define your rollback policy explicitly.
 
@@ -252,7 +318,7 @@ public void createUser(User user) {
 ```
 ---
 
-## Rule 6: Use `getReferenceById()` for Setting Associations
+## Rule 7: Use `getReferenceById()` for Setting Associations
 **Title:** Use `getReferenceById()` Instead of `findById()` When Only Setting a Foreign Key
 **Description:** When associating entities, you often only need a reference to an entity, not its actual data. Calling `findById()` executes an unnecessary `SELECT` query to fetch the full entity. Instead, use `getReferenceById()` which returns a lightweight proxy without hitting the database. This proxy is sufficient to establish the foreign key relationship when the parent entity is saved. Only use `findById()` when you need to access the entity's data.
 
