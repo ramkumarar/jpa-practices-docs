@@ -1,0 +1,4 @@
+DBML Entity-Relationship Diagrams visualizer
+vscode-dbml
+Markdown Preview Mermaid Support
+https://github.com/softwaretechnik-berlin/dbml-renderer
