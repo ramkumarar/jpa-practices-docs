@@ -1,0 +1,333 @@
+// Pagila PostgreSQL Database Schema in DBML Format
+// Port of MySQL's Sakila sample database for PostgreSQL
+// Represents a DVD rental store with actors, films, customers, rentals, and payments
+
+Project pagila {
+  database_type: 'PostgreSQL'
+  Note: '''
+  # Pagila Database
+  
+  A PostgreSQL sample database based on MySQL's Sakila database.
+  Represents a DVD rental store with comprehensive data including:
+  - Actors and films
+  - Customers and addresses
+  - Rental transactions
+  - Payment records
+  - Store and staff information
+  
+  Features:
+  - Full-text search capabilities
+  - Partitioned payment table
+  - Triggers for last_update columns
+  - JSONB data support
+  '''
+}
+
+// Actor table - stores actor information
+Table actor {
+  actor_id serial [primary key]
+  first_name varchar(45) [not null]
+  last_name varchar(45) [not null]
+  last_update timestamp [not null, default: `now()`]
+  
+  Note: "Stores actors data including first name and last name"
+}
+
+// Country table - stores country information
+Table country {
+  country_id serial [primary key]
+  country varchar(50) [not null]
+  last_update timestamp [not null, default: `now()`]
+  
+  Note: "Stores country names"
+}
+
+// City table - stores city information
+Table city {
+  city_id serial [primary key]
+  city varchar(50) [not null]
+  country_id int [not null, ref: > country.country_id]
+  last_update timestamp [not null, default: `now()`]
+  
+  Note: "Stores city names and their corresponding countries"
+}
+
+// Address table - stores address information
+Table address {
+  address_id serial [primary key]
+  address varchar(50) [not null]
+  address2 varchar(50)
+  district varchar(20) [not null]
+  city_id int [not null, ref: > city.city_id]
+  postal_code varchar(10)
+  phone varchar(20) [not null]
+  last_update timestamp [not null, default: `now()`]
+  
+  Note: "Stores address information for customers and staff"
+}
+
+// Language table - stores language information
+Table language {
+  language_id serial [primary key]
+  name char(20) [not null]
+  last_update timestamp [not null, default: `now()`]
+  
+  Note: "Stores language names for films"
+}
+
+// Category table - stores film categories
+Table category {
+  category_id serial [primary key]
+  name varchar(25) [not null]
+  last_update timestamp [not null, default: `now()`]
+  
+  Note: "Stores film categories such as Action, Comedy, etc."
+}
+
+// Film table - stores film information
+Table film {
+  film_id serial [primary key]
+  title varchar(255) [not null]
+  description text
+  release_year year
+  language_id int [not null, ref: > language.language_id]
+  original_language_id int [ref: > language.language_id]
+  rental_duration int [not null, default: 3]
+  rental_rate decimal(4,2) [not null, default: 4.99]
+  length int
+  replacement_cost decimal(5,2) [not null, default: 19.99]
+  rating mpaa_rating [default: 'G']
+  special_features text[]
+  last_update timestamp [not null, default: `now()`]
+  fulltext tsvector
+  
+  Note: "Stores films data such as title, release year, length, rating, etc"
+}
+
+// Film_actor table - many-to-many relationship between films and actors
+Table film_actor {
+  actor_id int [not null, ref: > actor.actor_id, primary key]
+  film_id int [not null, ref: > film.film_id, primary key]
+  last_update timestamp [not null, default: `now()`]
+  
+  Note: "Links actors to the films they appear in"
+}
+
+// Film_category table - many-to-many relationship between films and categories
+Table film_category {
+  film_id int [not null, ref: > film.film_id, primary key]
+  category_id int [not null, ref: > category.category_id, primary key]
+  last_update timestamp [not null, default: `now()`]
+  
+  Note: "Links films to their categories"
+}
+
+// Store table - stores rental store information
+Table store {
+  store_id serial [primary key]
+  manager_staff_id int [not null, unique]
+  address_id int [not null, ref: > address.address_id]
+  last_update timestamp [not null, default: `now()`]
+  
+  Note: "Stores information about rental stores"
+}
+
+// Staff table - stores staff information
+Table staff {
+  staff_id serial [primary key]
+  first_name varchar(45) [not null]
+  last_name varchar(45) [not null]
+  address_id int [not null, ref: > address.address_id]
+  email varchar(50)
+  store_id int [not null, ref: > store.store_id]
+  active boolean [not null, default: true]
+  username varchar(16) [not null]
+  password varchar(40)
+  last_update timestamp [not null, default: `now()`]
+  picture bytea
+  
+  Note: "Stores staff information including store assignment and credentials"
+}
+
+// Customer table - stores customer information
+Table customer {
+  customer_id serial [primary key]
+  store_id int [not null, ref: > store.store_id]
+  first_name varchar(45) [not null]
+  last_name varchar(45) [not null]
+  email varchar(50)
+  address_id int [not null, ref: > address.address_id]
+  activebool boolean [not null, default: true]
+  create_date date [not null, default: `current_date`]
+  last_update timestamp [default: `now()`]
+  active int
+  
+  Note: "Stores customer information including store assignment and contact details"
+}
+
+// Inventory table - stores inventory items
+Table inventory {
+  inventory_id serial [primary key]
+  film_id int [not null, ref: > film.film_id]
+  store_id int [not null, ref: > store.store_id]
+  last_update timestamp [not null, default: `now()`]
+  
+  Note: "Stores inventory items linking films to stores"
+}
+
+// Rental table - stores rental transactions
+Table rental {
+  rental_id serial [primary key]
+  rental_date timestamp [not null]
+  inventory_id int [not null, ref: > inventory.inventory_id]
+  customer_id int [not null, ref: > customer.customer_id]
+  return_date timestamp
+  staff_id int [not null, ref: > staff.staff_id]
+  last_update timestamp [not null, default: `now()`]
+  
+  indexes {
+    (rental_date, inventory_id, customer_id) [unique]
+  }
+  
+  Note: "Stores rental transactions with dates and customer/staff information"
+}
+
+// Payment table - stores payment information (partitioned)
+Table payment {
+  payment_id serial [primary key]
+  customer_id int [not null, ref: > customer.customer_id]
+  staff_id int [not null, ref: > staff.staff_id]
+  rental_id int [ref: > rental.rental_id]
+  amount decimal(5,2) [not null]
+  payment_date timestamp [not null]
+  
+  Note: "Records each payment made by a customer (partitioned by date)"
+}
+
+// Payment partition tables (example partitions)
+Table payment_p2022_01 {
+  payment_id serial [primary key]
+  customer_id int [not null, ref: > customer.customer_id]
+  staff_id int [not null, ref: > staff.staff_id]
+  rental_id int [ref: > rental.rental_id]
+  amount decimal(5,2) [not null]
+  payment_date timestamp [not null]
+  
+  Note: "Payment partition for January 2022"
+}
+
+Table payment_p2022_02 {
+  payment_id serial [primary key]
+  customer_id int [not null, ref: > customer.customer_id]
+  staff_id int [not null, ref: > staff.staff_id]
+  rental_id int [ref: > rental.rental_id]
+  amount decimal(5,2) [not null]
+  payment_date timestamp [not null]
+  
+  Note: "Payment partition for February 2022"
+}
+
+Table payment_p2022_03 {
+  payment_id serial [primary key]
+  customer_id int [not null, ref: > customer.customer_id]
+  staff_id int [not null, ref: > staff.staff_id]
+  rental_id int [ref: > rental.rental_id]
+  amount decimal(5,2) [not null]
+  payment_date timestamp [not null]
+  
+  Note: "Payment partition for March 2022"
+}
+
+Table payment_p2022_04 {
+  payment_id serial [primary key]
+  customer_id int [not null, ref: > customer.customer_id]
+  staff_id int [not null, ref: > staff.staff_id]
+  rental_id int [ref: > rental.rental_id]
+  amount decimal(5,2) [not null]
+  payment_date timestamp [not null]
+  
+  Note: "Payment partition for April 2022"
+}
+
+Table payment_p2022_05 {
+  payment_id serial [primary key]
+  customer_id int [not null, ref: > customer.customer_id]
+  staff_id int [not null, ref: > staff.staff_id]
+  rental_id int [ref: > rental.rental_id]
+  amount decimal(5,2) [not null]
+  payment_date timestamp [not null]
+  
+  Note: "Payment partition for May 2022"
+}
+
+Table payment_p2022_06 {
+  payment_id serial [primary key]
+  customer_id int [not null, ref: > customer.customer_id]
+  staff_id int [not null, ref: > staff.staff_id]
+  rental_id int [ref: > rental.rental_id]
+  amount decimal(5,2) [not null]
+  payment_date timestamp [not null]
+  
+  Note: "Payment partition for June 2022"
+}
+
+Table payment_p2022_07 {
+  payment_id serial [primary key]
+  customer_id int [not null, ref: > customer.customer_id]
+  staff_id int [not null, ref: > staff.staff_id]
+  rental_id int [ref: > rental.rental_id]
+  amount decimal(5,2) [not null]
+  payment_date timestamp [not null]
+  
+  Note: "Payment partition for July 2022"
+}
+
+// Foreign key reference for staff manager
+Ref: store.manager_staff_id > staff.staff_id
+
+// Enum for MPAA ratings
+Enum mpaa_rating {
+  G
+  PG
+  "PG-13"
+  R
+  "NC-17"
+}
+
+// Indexes for performance
+TableGroup "Core_Business_Tables" {
+  actor
+  film
+  customer
+  rental
+  payment
+}
+
+TableGroup "Reference_Tables" {
+  country
+  city
+  address
+  language
+  category
+}
+
+TableGroup "Operational_Tables" {
+  store
+  staff
+  inventory
+}
+
+TableGroup "Junction_Tables" {
+  film_actor
+  film_category
+}
+
+TableGroup "Partitioned_Tables" {
+  payment_p2022_01
+  payment_p2022_02
+  payment_p2022_03
+  payment_p2022_04
+  payment_p2022_05
+  payment_p2022_06
+  payment_p2022_07
+}
